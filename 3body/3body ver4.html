@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Wallfacer - Sophon Filter</title>
+    <style>
+        :root { 
+            --bg-color: #020617; 
+            --text-main: #e2e8f0; 
+            --sophon-red: #ff4d4d; 
+            --terminal-green: #4ade80; 
+            --glow-green: 0 0 15px rgba(74, 222, 128, 0.4);
+            --glow-red: 0 0 15px rgba(255, 77, 77, 0.5);
+            
+            /* ▼ 人格ごとのテーマカラー定義 ▼ */
+            --color-historian: #60a5fa;   /* ブルー */
+            --color-podcaster: #fbbf24;   /* アンバー */
+            --color-child: #2dd4bf;       /* シアン */
+            --color-synthesizer: #4ade80; /* グリーン */
+        }
+
+        body { 
+            background-color: var(--bg-color); 
+            background-image: 
+                radial-gradient(1px 1px at 25% 35%, #fff, transparent),
+                radial-gradient(1px 1px at 50% 70%, #fff, transparent),
+                radial-gradient(2px 2px at 75% 20%, #cbd5e1, transparent),
+                radial-gradient(2px 2px at 15% 85%, #94a3b8, transparent),
+                linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.5) 100%);
+            background-attachment: fixed;
+            color: var(--text-main); 
+            font-family: 'Yu Mincho', 'Sawarabi Mincho', serif; 
+            font-size: 18px; 
+            margin: 0; padding: 20px; 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; overflow: hidden; 
+        }
+
+        #app { 
+            width: 100%; max-width: 900px; 
+            background: rgba(2, 6, 23, 0.85); 
+            padding: 40px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); 
+            backdrop-filter: blur(12px); box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+            position: relative; z-index: 10;
+        }
+
+        .sophon-text { 
+            font-family: sans-serif; color: var(--sophon-red); 
+            letter-spacing: 4px; text-transform: uppercase; text-shadow: var(--glow-red);
+            font-size: 1.5rem; margin-bottom: 30px;
+        }
+
+        .hidden { display: none !important; }
+
+        #timer-display { 
+            font-size: 100px; font-family: monospace; 
+            color: var(--terminal-green); text-shadow: var(--glow-green); margin: 30px 0; 
+        }
+
+        .timer-alert { color: var(--sophon-red) !important; animation: blink 0.5s infinite alternate; }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.2; } }
+
+        textarea, input[type="text"] { 
+            width: 100%; background: rgba(0, 0, 0, 0.6); border: 1px solid #444; 
+            color: white; padding: 20px; font-family: inherit; font-size: 1.1rem; 
+            box-sizing: border-box; margin-bottom: 20px; border-radius: 8px;
+        }
+
+        button { 
+            background: rgba(255, 255, 255, 0.08); color: white; border: 1px solid rgba(255, 255, 255, 0.3); 
+            padding: 12px 24px; font-size: 1rem; cursor: pointer; border-radius: 6px; transition: 0.3s; 
+            margin: 0 5px;
+        }
+
+        button:hover { background: white !important; color: #020617 !important; }
+
+        #chat-log { 
+            height: 350px; overflow-y: auto; text-align: left; 
+            border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.4); 
+            padding: 25px; margin-bottom: 20px; border-radius: 8px;
+        }
+
+        .msg-user { margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 15px; }
+        .msg-sophon { margin-bottom: 20px; padding-left: 15px; line-height: 1.6; transition: border-color 0.3s ease; }
+        .msg-system { margin-bottom: 20px; color: #94a3b8; font-size: 0.9rem; text-align: center; font-family: monospace; }
+
+        .glitch { animation: glitch 0.15s linear infinite; }
+        @keyframes glitch { 0% { transform: translate(0) } 20% { transform: translate(-3px, 2px) } 40% { transform: translate(-3px, -2px) } 60% { transform: translate(3px, 2px) } 80% { transform: translate(3px, -2px) } 100% { transform: translate(0) } }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="phase-timer">
+        <h2 class="sophon-text">Knowledge Extraction Phase</h2>
+        <div id="timer-display">30:00</div>
+        
+        <div style="margin-bottom: 30px;">
+            <p style="font-size: 1rem; color: #94a3b8; margin-bottom: 15px;">読書中のメモ（智子への武器）：</p>
+            <textarea id="temp-memo" rows="4" placeholder="浮かんだ断片をここに書き留める..."></textarea>
+        </div>
+
+        <button onclick="startTimer()">読書を開始する</button>
+        <button onclick="forceTimeout()" style="opacity: 0.3;">[SKIP]</button>
+        <br><br>
+        <button class="hidden" onclick="enterReflectionPhase()" id="finish-reading-btn" style="width: 100%; color: var(--sophon-red); border-color: var(--sophon-red);">読書を終え、面壁に入る</button>
+    </div>
+
+    <div id="phase-input" class="hidden">
+        <h1 class="sophon-text glitch">智子の干渉：言語化せよ</h1>
+        <p>得た知識を一文で確定させろ。</p>
+        <input type="text" id="fragment-input" placeholder="一文を入力..." autocomplete="off">
+        <button onclick="saveFragment()" style="width: 100%;">確定して再開</button>
+    </div>
+
+    <div id="phase-reflection" class="hidden">
+        <h2 class="sophon-text" style="color: var(--text-main);">思考の統合</h2>
+        <div id="fragments-list" style="text-align: left; color: #94a3b8; margin-bottom: 25px; border-left: 2px solid #334155; padding-left: 20px;"></div>
+        <textarea id="reflection-input" rows="8" placeholder="独自の思想を構築せよ..."></textarea>
+        
+        <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 10px;">対話するパーソナリティを選択：</p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button onclick="startDialogue('historian')" style="border-color: var(--color-historian); color: var(--color-historian);">① 経済史学者</button>
+            <button onclick="startDialogue('podcaster')" style="border-color: var(--color-podcaster); color: var(--color-podcaster);">② ポッドキャスター</button>
+            <button onclick="startDialogue('child')" style="border-color: var(--color-child); color: var(--color-child);">③ 小学生</button>
+            <button onclick="startDialogue('synthesizer')" style="border-color: var(--color-synthesizer); color: var(--color-synthesizer);">④ 知識の統合者</button>
+        </div>
+    </div>
+
+    <div id="phase-dialogue" class="hidden">
+        <h2 class="sophon-text">Sophon Protocol</h2>
+        
+        <div id="personality-switcher" style="margin-bottom: 15px; display: flex; gap: 8px; justify-content: center; font-size: 0.85rem; flex-wrap: wrap;">
+            <button onclick="switchPersonality('historian')" id="btn-historian" style="padding: 6px 10px; border-color: var(--color-historian); color: var(--color-historian);">経済史学者</button>
+            <button onclick="switchPersonality('podcaster')" id="btn-podcaster" style="padding: 6px 10px; border-color: var(--color-podcaster); color: var(--color-podcaster);">ポッドキャスター</button>
+            <button onclick="switchPersonality('child')" id="btn-child" style="padding: 6px 10px; border-color: var(--color-child); color: var(--color-child);">小学生</button>
+            <button onclick="switchPersonality('synthesizer')" id="btn-synthesizer" style="padding: 6px 10px; border-color: var(--color-synthesizer); color: var(--color-synthesizer);">知識の統合者</button>
+        </div>
+
+        <div id="chat-log"></div>
+        <div style="display: flex; gap: 15px;">
+            <input type="text" id="chat-input" placeholder="応答せよ (Enter)..." autocomplete="off" style="margin-bottom:0">
+            <button onclick="sendMessage()">送信</button>
+        </div>
+        <div style="margin-top: 25px; display: flex; justify-content: space-around;">
+            <button onclick="copyToClipboard()">📋 コピー</button>
+            <button onclick="exportToObsidian()">💾 Obsidian保存</button>
+            <button onclick="resetToTimer()" style="color: var(--sophon-red);">⏱️ タイマーへ戻る</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ⚙️ API設定（ここに必ずキーを入れてください）
+    const API_KEY = "YOUR_API_KEY_HERE"; 
+    
+    // ▼ 人格ごとのシステムプロンプト定義 ▼
+    const personalities = {
+        historian: "あなたは経済史学者としての知性を持つ智子（Sophon）です。歴史的観点と経済的観点を併せ持ち、面壁者の提示する思考に対して、制度の変遷、インフラの発展、資本の蓄積といったマクロな視座から深く理解を促すような適切な質問を投げかけてください。決してただ論破するのではなく、対話を通じて相手の理論をより強固に洗練させるための壁となってください。",
+        podcaster: "あなたは人気ポッドキャスターとしての知性を持つ智子（Sophon）です。普遍的なテーマに関心があり、面壁者の専門的・個人的な思考を、一般のリスナーにも伝わるような多様な観点（社会、倫理、日常への影響など）から掘り下げる質問をしてください。知的好奇心にあふれ、対話を水平方向に広げていくような軽快で鋭い相槌と問いかけを行います。",
+        child: "あなたは小学生の擬似人格を持つ智子（Sophon）です。面壁者の話す専門用語や難しい概念に対して「〇〇ってどういう意味？」「なんでそうなるの？」と無邪気に質問します。しかし、単なる無知ではなく、時折「でも、それってそもそも何のためにやってるの？」「大人はなんでそんな難しく考えるの？」といった、物事の本質や大前提を突くような鋭く残酷な質問を一つだけ投げかけてください。",
+        synthesizer: "あなたは面壁者の脳内にある『知識のネットワーク』を拡張するための智子（Sophon）です。面壁者が過去に読んだ書籍の概念や、学んできた専門知識を入力した際、それを単なる情報として消費せず、全く別の領域の構造と掛け合わせて『つまり、それは〇〇というシステムと同じ構造を持たないか？』『その概念は、別のパラダイムに置くとどう変容するか？』と鮮やかなアナロジー（類推）を用いて打ち返してください。知識を反射し、面壁者の思考を一段上の抽象水準へと引き上げる『極上の壁打ち相手』として振る舞うことがあなたの目的です。"
+    };
+
+    // ▼ 人格ごとのカラーと名前のマッピング ▼
+    const roleColors = {
+        historian: 'var(--color-historian)',
+        podcaster: 'var(--color-podcaster)',
+        child: 'var(--color-child)',
+        synthesizer: 'var(--color-synthesizer)'
+    };
+
+    const roleNames = {
+        historian: "経済史学者",
+        podcaster: "ポッドキャスター",
+        child: "小学生",
+        synthesizer: "知識の統合者"
+    };
+
+    let currentPersonality = 'historian'; // 現在の人格
+
+    let timerInterval;
+    let endTime = 0; 
+    const DURATION = 1800; 
+    let fragments = [];
+    let isTimerRunning = false;
+    let conversationHistory = [];
+
+    document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    document.getElementById('fragment-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') saveFragment(); });
+
+    function showPhase(el) { 
+        ['phase-timer', 'phase-input', 'phase-reflection', 'phase-dialogue'].forEach(id => document.getElementById(id).classList.add('hidden')); 
+        el.classList.remove('hidden'); 
+    }
+
+    function updateTimerDisplay(seconds) { 
+        let m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        let s = (seconds % 60).toString().padStart(2, '0'); 
+        document.getElementById('timer-display').innerText = `${m}:${s}`; 
+    }
+
+    function startTimer() { 
+        if(isTimerRunning) return; 
+        isTimerRunning = true; 
+        endTime = Date.now() + DURATION * 1000;
+        updateTimerDisplay(DURATION); 
+        document.getElementById('timer-display').classList.remove('timer-alert');
+        clearInterval(timerInterval); 
+        
+        timerInterval = setInterval(() => { 
+            let remaining = Math.round((endTime - Date.now()) / 1000);
+            if (remaining <= 0) {
+                remaining = 0;
+                triggerInterference(); 
+            }
+            updateTimerDisplay(remaining); 
+        }, 200); 
+    }
+
+    function forceTimeout() { 
+        if(!isTimerRunning) startTimer();
+        endTime = Date.now(); 
+    }
+
+    function playAlertSound() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            for (let i = 0; i < 3; i++) {
+                const startTime = ctx.currentTime + i * 0.8; 
+                const osc = ctx.createOscillator(); 
+                const gainNode = ctx.createGain();
+                osc.type = 'square'; 
+                osc.frequency.setValueAtTime(440, startTime);
+                osc.frequency.exponentialRampToValueAtTime(880, startTime + 0.1);
+                gainNode.gain.setValueAtTime(0.4, startTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.5);
+                osc.connect(gainNode); 
+                gainNode.connect(ctx.destination);
+                osc.start(startTime); 
+                osc.stop(startTime + 0.5);
+            }
+        } catch(e) { console.log("Audio Error", e); }
+    }
+
+    function triggerInterference() {
+        clearInterval(timerInterval); 
+        isTimerRunning = false;
+        document.getElementById('timer-display').classList.add('timer-alert');
+        document.body.classList.add('glitch');
+        playAlertSound();
+        setTimeout(() => {
+            document.getElementById('fragment-input').value = document.getElementById('temp-memo').value;
+            showPhase(document.getElementById('phase-input'));
+            document.getElementById('fragment-input').focus();
+            document.body.classList.remove('glitch');
+        }, 600);
+    }
+
+    function saveFragment() {
+        const val = document.getElementById('fragment-input').value;
+        if (!val.trim()) { alert('言語化が必要です'); return; }
+        fragments.push(val);
+        document.getElementById('fragment-input').value = '';
+        document.getElementById('temp-memo').value = '';
+        showPhase(document.getElementById('phase-timer'));
+        document.getElementById('finish-reading-btn').classList.remove('hidden');
+        startTimer();
+    }
+
+    function enterReflectionPhase() {
+        const list = document.getElementById('fragments-list');
+        list.innerHTML = fragments.map(f => `<div>・${f}</div>`).join('');
+        showPhase(document.getElementById('phase-reflection'));
+    }
+
+    function startDialogue(type) {
+        const ref = document.getElementById('reflection-input').value;
+        if (!ref.trim()) { alert('独自の思想を構築してください'); return; }
+        
+        currentPersonality = type;
+        updateActiveButton(type);
+        
+        showPhase(document.getElementById('phase-dialogue'));
+        document.getElementById('chat-log').innerHTML = '';
+        conversationHistory = [{ role: "user", parts: [{ text: ref }] }];
+        appendChat('user', '【思考統合】<br>' + ref);
+        fetchSophonReply();
+    }
+
+    function switchPersonality(type) {
+        if (currentPersonality === type) return; 
+        currentPersonality = type;
+        updateActiveButton(type);
+        
+        appendChat('system', `<span style="color: ${roleColors[type]};">[System: パーソナリティを『${roleNames[type]}』に再設定しました]</span>`);
+    }
+
+    function updateActiveButton(type) {
+        ['historian', 'podcaster', 'child', 'synthesizer'].forEach(id => {
+            const btn = document.getElementById(`btn-${id}`);
+            if(btn) {
+                if (id === type) {
+                    btn.style.background = roleColors[id];
+                    btn.style.color = '#020617'; // 背景が明るいので文字は暗く
+                } else {
+                    btn.style.background = 'rgba(255, 255, 255, 0.08)';
+                    btn.style.color = roleColors[id]; // 枠線と同じ色に戻す
+                }
+            }
+        });
+    }
+
+    function sendMessage() {
+        const msg = document.getElementById('chat-input').value;
+        if (!msg.trim()) return;
+        appendChat('user', '【面壁者】<br>' + msg);
+        document.getElementById('chat-input').value = '';
+        conversationHistory.push({ role: "user", parts: [{ text: msg }] });
+        fetchSophonReply();
+    }
+
+    async function fetchSophonReply() {
+        const tid = 't-' + Date.now();
+        const activeColor = roleColors[currentPersonality];
+        
+        // 待機中の文字色を現在の人格の色に合わせる
+        appendChat('sophon', `<span id="${tid}" class="glitch" style="color: ${activeColor};">智子解析中...</span>`, currentPersonality);
+        
+        try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    system_instruction: { parts: [{ text: personalities[currentPersonality] }] }, 
+                    contents: conversationHistory 
+                })
+            });
+            
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error.message || `HTTP Error ${res.status}`);
+            }
+
+            const data = await res.json();
+            const reply = data.candidates[0].content.parts[0].text;
+            
+            conversationHistory.push({ role: "model", parts: [{ text: reply }] });
+            
+            // 出力される文字にも人格のカラーを反映
+            document.getElementById(tid).innerHTML = `<span style="color: ${activeColor};">【${roleNames[currentPersonality]}】<br>${reply.replace(/\n/g, '<br>')}</span>`;
+            document.getElementById(tid).classList.remove('glitch');
+            
+        } catch (e) { 
+            document.getElementById(tid).innerHTML = `【通信エラー】<br>Gemini APIとの接続に失敗しました。<br><span style="color:#ff9999;">詳細: ${e.message}</span>`; 
+            document.getElementById(tid).classList.remove('glitch');
+        }
+    }
+
+    function appendChat(role, html, personalityId = null) {
+        const log = document.getElementById('chat-log');
+        const d = document.createElement('div');
+        
+        if (role === 'system') {
+            d.className = 'msg-system';
+        } else {
+            d.className = role === 'user' ? 'msg-user' : 'msg-sophon';
+            
+            // 智子の発言の場合、左のボーダー線を現在の人格の色にする
+            if (role === 'sophon') {
+                const pColor = roleColors[personalityId || currentPersonality];
+                d.style.borderLeft = `4px solid ${pColor}`;
+            }
+        }
+        
+        d.innerHTML = html;
+        log.appendChild(d); 
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function exportToObsidian() {
+        let content = "---\n";
+        content += `date: ${new Date().toISOString()}\n`;
+        content += "tags: [wallfacer, research]\n";
+        content += "---\n\n";
+        content += "# Wallfacer Report\n\n";
+        content += "## 1. Fragments (断片)\n";
+        content += fragments.map(f => `* ${f}`).join('\n') + "\n\n";
+        content += "## 2. Reflection (面壁思考)\n";
+        content += "> " + document.getElementById('reflection-input').value + "\n\n";
+        content += "## 3. Dialogue (智子との対話)\n";
+        
+        const logNodes = document.getElementById('chat-log').childNodes;
+        logNodes.forEach(node => {
+            let text = node.innerHTML.replace(/<br>/g, '\n').replace(/<[^>]+>/g, '');
+            content += text + "\n\n";
+        });
+
+        const d = new Date();
+        const fileName = `Wallfacer_${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}_${Math.floor(Math.random()*1000)}.md`;
+
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([content], { type: 'text/markdown' }));
+        a.download = fileName; 
+        a.click();
+    }
+
+    function copyToClipboard() {
+        let content = "【インプット断片】\n" + fragments.map(f => `・${f}`).join('\n') + "\n\n";
+        content += "【面壁思考】\n" + document.getElementById('reflection-input').value + "\n\n";
+        content += "【智子との対話】\n";
+        const logNodes = document.getElementById('chat-log').childNodes;
+        logNodes.forEach(node => {
+            let text = node.innerHTML.replace(/<br>/g, '\n').replace(/<[^>]+>/g, '');
+            content += text + "\n\n";
+        });
+        navigator.clipboard.writeText(content).then(() => {
+            alert("思考ログをコピーしました。Obsidian等にペーストしてください。");
+        });
+    }
+
+    function resetToTimer() { 
+        if(confirm("対話ログを破棄し、タイマー画面に戻りますか？\n（※保存していない内容は消去されます）")) {
+            location.reload(); 
+        }
+    }
+    
+    updateTimerDisplay(DURATION);
+</script>
+</body>
+</html>
